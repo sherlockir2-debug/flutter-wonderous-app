@@ -10,14 +10,35 @@ jobs:
     name: Android (.apk)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
       - run: flutter pub get
+      - name: Ensure Gradle wrapper meets Flutter minimum
+        run: |
+          set -e
+          f=android/gradle/wrapper/gradle-wrapper.properties
+          min=8.14.3
+          if [ ! -f "$f" ]; then
+            echo "No Gradle wrapper properties found, skipping."
+            exit 0
+          fi
+          cur=$(sed -nE 's#.*gradle-([0-9]+\.[0-9]+(\.[0-9]+)?)-(bin|all)\.zip.*#\1#p' "$f" | head -1)
+          if [ -z "$cur" ]; then
+            echo "Could not detect Gradle version, skipping."
+            exit 0
+          fi
+          lowest=$(printf '%s\n%s\n' "$min" "$cur" | sort -V | head -1)
+          if [ "$lowest" != "$min" ]; then
+            echo "Gradle $cur is older than $min - upgrading wrapper."
+            sed -i -E "s#gradle-[0-9.]+-(bin|all)\.zip#gradle-$min-\1.zip#" "$f"
+          else
+            echo "Gradle $cur is OK (>= $min)."
+          fi
       - run: flutter build apk --release
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: app-android-apk
